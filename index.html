@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+
+    <link rel="stylesheet" href="./libs/element-plus/index.css">
+    <link rel="stylesheet" href="./style/index.css">
+    <link rel="stylesheet" href="./libs/vue-json-pretty/styles.css">
+
+    <script src="./libs/vue@3.2.36.js"></script>
+    <script src="./libs/vuex@4.0.2.js"></script>
+    <script src="./libs/element-plus/element-plus@2.2.14.js"></script>
+    <script src="./libs/vue-json-pretty/vue-json-pretty.js"></script>
+    <script src="https://cdn.ronghub.com/RongIMLib-5.6.0.prod.js"></script>
+    <script src="https://cdn.ronghub.com/RCRTC-5.6.2.prod.js"></script>
+    <!-- <script src="./sdk/rtc.js"></script> -->
+    <title>RTC API DEMO</title>
+</head>
+
+<body>
+    <script id="main-component" type="text/x-template">
+        <rc-api />
+        <!-- <rc-track /> -->
+        <rc-pretty />
+    </script>
+
+
+    <!-- login组件 -->
+    <script id="login-component" type="text/x-template">
+        <h1>连接</h1>
+        <el-form label-width="120px">
+            <el-form-item label="选择用户">
+                <el-select clearable style="width: 100%" placeholder="please select user" v-model="userData.info" @change="selectUserChange">
+                  <el-option v-for="(user, index) in userData.list" :label="user.label" :value="user.value" />
+                </el-select>
+            </el-form-item>
+            <el-form-item label="appkey">
+                <el-input v-model="config.appkey" placeholder="appkey" />
+            </el-form-item>
+            <el-form-item label="token">
+                <el-input v-model="config.token" placeholder="token" />
+            </el-form-item>
+            <el-form-item label="logLevel">
+                <el-select clearable style="width: 100%" placeholder="please select logLevel" v-model="logLevelData.info" @change="selectLogLevelChange">
+                  <el-option v-for="(level, key) in logLevelData.list" :label="key" :value="level" />
+                </el-select>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @click="login(0)">会议场景</el-button>
+                <el-button type="primary" @click="login(1)">直播场景-主播端</el-button>
+                <el-button type="primary" @click="login(2)">直播场景-观众端</el-button>
+            </el-form-item>
+        </el-form>
+    </script>
+    <!-- login组件 -->
+
+    <script id="json-pretty-component" type="text/x-template">
+        <div class="json-pretty-container">
+            <h5 style="text-align: left">调用-{{treeData.eventName ? treeData.eventName : null}}-返回信息：</h5>
+            <vue-json-pretty :data="treeData" :showLength="true" :highlight-mouseover-node="true" selectable-type="single" path="root" />
+        </div>
+    </script>
+
+    <script id="api-component" type="text/x-template">
+
+        <div class="button-container mb10"  v-for="(apiItems, index) in apiList" ::key="index">
+            <span class="" v-for="(api, _index) in apiItems" :key="_index">
+                <el-dialog v-model="api.isShow" title='参数设置' width="60%" draggable :show-close="false" :destroy-on-close="true">
+                    <el-form label-width="200px">
+                        <template v-for="(oneLevel, oneIndex) in api.params">
+                          <template v-if="oneLevel.type === 'object'">
+                            <template v-for="(twoLevel, twoIndex) in oneLevel.value">
+                              <template v-if="twoLevel.type === 'object'">
+                                <template v-for="(threeLevel, twoIndex) in twoLevel.value">
+                                  <template v-if="threeLevel.type === 'object'"> 四级参数暂未处理（目前没有涉及） </template>
+                                  <template v-else>
+                                    <el-form-item style="margin-left: 80px"
+                                      :label="threeLevel.type !== 'object' ? oneLevel.name + '.' + twoLevel.name + '.' + threeLevel.name : ''"
+                                    >
+                                      <el-switch
+                                        v-if="threeLevel.type === 'boolean'"
+                                        v-model="threeLevel.value"
+                                        active-text="true"
+                                        inactive-text="false"
+                                      />
+                                      <el-input v-else-if="threeLevel.type === 'number'" v-model.number="threeLevel.value" :placeholder="threeLevel.placeholder ? threeLevel.placeholder : ''"  />
+                                      <el-input v-else v-model="threeLevel.value" :placeholder="threeLevel.placeholder ? threeLevel.placeholder : ''"  />
+                                    </el-form-item>
+                                  </template>
+                                </template>
+                              </template>
+                              <template v-else>
+                                <el-form-item
+                                  :label="twoLevel.type !== 'object' ? oneLevel.name+'.'+twoLevel.name : ''"
+                                  style="margin-left: 80px"
+                                >
+                                  <el-switch
+                                    v-if="twoLevel.type === 'boolean'"
+                                    v-model="twoLevel.value"
+                                    active-text="true"
+                                    inactive-text="false"
+                                  />
+                                  <el-input v-else-if="twoLevel.type === 'number'" v-model.number="twoLevel.value" :placeholder="twoLevel.placeholder ? twoLevel.placeholder : ''" />
+                                  <el-input v-else v-model="twoLevel.value" :placeholder="twoLevel.placeholder ? twoLevel.placeholder : ''" />
+                                </el-form-item>
+                              </template>
+                            </template>
+                          </template>
+                          <template v-else>
+                            <el-form-item :label="oneLevel.type !== 'object' ? oneLevel.name : ''">
+                              <el-switch
+                                v-if="oneLevel.type === 'boolean'"
+                                v-model="oneLevel.value"
+                                active-text="true"
+                                inactive-text="false"
+                              />
+                              <el-input v-else-if="oneLevel.type === 'number'" v-model.number="oneLevel.value" :placeholder="oneLevel.placeholder ? oneLevel.placeholder : ''"  />
+                              <el-input v-else v-model="oneLevel.value" :placeholder="oneLevel.placeholder ? oneLevel.placeholder : ''"  />
+                            </el-form-item>
+                          </template>
+                        </template>
+                      </el-form>
+                    <template #footer>
+                        <span class="dialog-footer">
+                            <el-button @click="api.isShow = false">Cancel</el-button>
+                            <el-button type="primary" @click="runApi(api); api.isShow = false">Run</el-button>
+                        </span>
+                    </template>
+                </el-dialog>
+                <el-popover
+                    placement="bottom-start"
+                    :width="300"
+                    trigger="hover"
+                >
+                    <el-button v-if="api.params" size="small" @click="api.isShow = true">配置</el-button>
+                    <p v-if="api.eventName">方法：{{api.eventName}}</p>
+                    <p v-if="api.desc">描述：{{api.desc}}</p>
+                    <p v-if="api.doc"><a :href="api.doc" target="_blank">文档</a></p>
+                    <template #reference>
+                        <el-button @click="runApi(api)">{{api.name}}</el-button>
+                    </template>
+                </el-popover>
+            </span>
+        </div>
+
+        <el-dialog v-model="isParamsDialogVisible" title='参数设置' width="30%" draggable :show-close="false" :destroy-on-close="true">
+            <el-form label-width="150px">
+                <el-form-item v-for="(param, param_index) in api.params" :label="param.name">
+                    <el-input v-model="param.value" />
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <span class="dialog-footer">
+                    <el-button @click="isParamsDialogVisible = false">Cancel</el-button>
+                    <el-button type="primary" @click="isParamsDialogVisible = false"
+                        >Confirm</el-button
+                    >
+                </span>
+            </template>
+        </el-dialog>
+
+        <div class="track-container">
+            <div class="track" :class="[{ zoominVideo: track.isZoomin }, track._id]" v-for="(track, index) in trackList">
+                <div class="info">
+                    <p>_userId：{{track._userId}}</p>
+                    <p>track_id：{{track._id}}</p>
+                    <p>_kind：{{track._kind}}</p>
+                    <p v-if="track._isLocalTrack">_isPublished：{{track._isPublished}}</p>
+                    <p v-else>_isSubscribed：{{track.isSubscrib}}</p>
+                    <p>_isLocalTrack：{{track._isLocalTrack}}</p>
+                </div>
+                <template v-if="track._kind === 'video'">
+                    <video @click="resizeVideo(track)" autoplay playsinline :id="track._id"></video>
+                </template>
+                <div class="buttonList">
+                    <el-button size="small" @click="handleMuteTrack(track)">{{track._localMuted ? "取消禁用" : "禁用"}}</el-button>
+                    <el-button size="small" v-if="track._isLocalTrack"  @click="handlePublishTrack(track, false)">{{track._isPublished ? "取消发布" : "发布"}}</el-button>
+                    <el-button size="small" v-if="!track._isLocalTrack" @click="handleSubscribeTrack(track)">{{track.isSubscrib ? "取消订阅" : "订阅"}}</el-button>
+                    <!-- <el-button size="small" v-if="track._isLocalTrack"  @click="handelDestroy(track)">销毁资源</el-button> -->
+                </div>
+            </div>
+        </div>
+
+    </script>
+
+
+
+    <script id="track-component" type="text/x-template">
+        <!-- <h4>track-component</h4> -->
+    </script>
+
+    <script id="audio-component" type="text/x-template">
+        <h1>123123</h1>
+    </script>
+
+
+    <div id="app">
+        <div class="main-container" v-if="isShowMainView">
+            <rc-main />
+        </div>
+        <div class="login-container" v-else>
+            <rc-login v-if=true @login="login" />
+        </div>
+
+    </div>
+
+</body>
+<script src="./js/utils.js"></script>
+<script src="./rc-services/services.js"></script>
+<script src="./rc-services/test-api-list.js"></script>
+<script src="./rc-services/api-list.js"></script>
+<script src="./js/store.js"></script>
+
+<script src="./components/login.js"></script>
+<script src="./components/main.js"></script>
+<script src="./components/api.js"></script>
+<script src="./components/track.js"></script>
+<script src="./components/json-pretty.js"></script>
+
+<script src="./js/index.js"></script>
+
+</html>
